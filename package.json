@@ -1,0 +1,43 @@
+{
+  "name": "rxjs-marble-testing",
+  "version": "1.0.0",
+  "description": "Marble testing and diagram rendering for rxjs with mocha",
+  "scripts": {
+    "build": "tsc",
+    "test": "mocha --opts mocha.opts"
+  },
+  "dependencies": {
+    "@types/chai": "3.4.34",
+    "@types/d3": "^4.3.0",
+    "@types/escape-string-regexp": "0.0.30",
+    "@types/gm": "^1.17.29",
+    "@types/jsdom": "^2.0.29",
+    "@types/lodash": "^4.14.37",
+    "@types/mocha": "2.2.32",
+    "@types/node": "^6.0.46",
+    "color": "^0.11.4",
+    "d3": "^4.3.0",
+    "gm": "^1.23.0",
+    "jsdom": "^9.8.3",
+    "lodash": "^4.4.0"
+  },
+  "peerDependencies": {
+    "chai": "^3.5.0",
+    "rxjs": "^5.0.0-rc.1",
+    "mocha": "^3.0"
+  },
+  "devDependencies": {
+    "typescript": "^2.0",
+    "mocha": "^3.1.2",
+    "chai": "^3.5.0",
+    "source-map-support": "^0.4.6",
+    "ts-node": "^1.7"
+  },
+  "keywords": [
+    "rxjs",
+    "marble",
+    "mocha"
+  ],
+  "author": "Pierre Kraft",
+  "license": "Apache-2.0"
+}

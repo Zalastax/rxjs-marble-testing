@@ -1,0 +1,8 @@
+--colors
+--require source-map-support/register
+--require ts-node/register
+--require src/test-helper
+--require src/tests2img/diagram-test-runner
+--ui src/testScheduler-ui
+--watch-extensions tsx,ts
+test/**/*.ts
