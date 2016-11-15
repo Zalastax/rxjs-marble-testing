@@ -2,11 +2,12 @@ import * as _ from 'lodash'
 import * as commonInterface from 'mocha/lib/interfaces/common'
 import escapeRe = require('escape-string-regexp')
 import * as chai from 'chai'
+import * as path from 'path'
 
 import * as Rx from 'rxjs'
 import * as marble from './marble-testing'
 import './mocha-setup-node'
-
+import { HotStream } from './missinginterfaces'
 
 declare const module: any
 declare const global: any
@@ -14,6 +15,12 @@ declare const Suite: any
 declare const Test: any
 
 const diagramFunction = global.asDiagram
+
+const buildDiagramOutputStream = global.buildDiagramOutputStream
+const updateInputStreamsPostFlush = global.updateInputStreamsPostFlush
+const getInputStreams = global.getInputStreams
+const painter = global.painter
+
 
 // mocha creates own global context per each test suite,
 // simple patching to global won't deliver its context into test cases.
@@ -117,29 +124,9 @@ module.exports = function(suite: any) {
       return marble
     }
 
-    /**
-     * custom assertion formatter for expectObservable test
-     */
-
-    function observableMatcher(actual: any, expected: any) {
-      if (Array.isArray(actual) && Array.isArray(expected)) {
-        actual = actual.map(deleteErrorNotificationStack)
-        expected = expected.map(deleteErrorNotificationStack)
-        const passed = _.isEqual(actual, expected)
-        if (passed) {
-          return
-        }
-
-        let message = '\nExpected \n';
-        actual.forEach((x: any) => message += `\t${stringify(x)}\n`)
-
-        message += '\t\nto deep equal \n';
-        expected.forEach((x: any) => message += `\t${stringify(x)}\n`)
-
-        chai.assert(passed, message)
-      } else {
-        chai.assert.deepEqual(actual, expected)
-      }
+    function makeFilename(operatorLabel: string) {
+      const underscored = operatorLabel.replace(/\s/g, '_')
+      return underscored.replace(/[^a-zA-Z0-9_]/gi, '')
     }
 
     /**
@@ -148,23 +135,101 @@ module.exports = function(suite: any) {
      * acting as a thunk.
      */
 
-    const it = context.it = context.specify = function(title: any, fn: any) {
+    const it = context.it = context.specify = function(title: string, fn: any) {
       context.rxTestScheduler = null
       let modified = fn
 
       if (fn && fn.length === 0) {
         modified = function (done: (error?: any) => any) {
-          context.rxTestScheduler = new Rx.TestScheduler(observableMatcher)
+          const actualOutputStreams: HotStream[] = []
+          const expectedOutputStreams: HotStream[] = []
+
+          let forceFlush = false
+
+          context.rxTestScheduler = new Rx.TestScheduler((actual: any, expected: any) => {
+            if (buildDiagramOutputStream) {
+              buildDiagramOutputStream(actualOutputStreams, actual)
+              buildDiagramOutputStream(expectedOutputStreams, expected)
+            }
+            if (forceFlush) {
+              return
+            }
+            if (Array.isArray(actual) && Array.isArray(expected)) {
+              actual = actual.map(deleteErrorNotificationStack)
+              expected = expected.map(deleteErrorNotificationStack)
+              const passed = _.isEqual(actual, expected)
+              if (passed) {
+                return
+              }
+
+              let message = '\nExpected \n';
+              actual.forEach((x: any) => message += `\t${stringify(x)}\n`)
+
+              message += '\t\nto deep equal \n';
+              expected.forEach((x: any) => message += `\t${stringify(x)}\n`)
+
+              chai.assert(passed, message)
+            } else {
+              chai.assert.deepEqual(actual, expected)
+            }
+          })
           let error: Error | undefined = undefined
+          let inputStreams = getInputStreams && getInputStreams(global.rxTestScheduler)
 
           try {
             fn()
-            context.rxTestScheduler.flush();
+            context.rxTestScheduler.flush()
+            context.rxTestScheduler = null
+            done()
           } catch (e) {
             error = e instanceof Error ? e : new Error(e)
-          } finally {
-            context.rxTestScheduler = null
-            error ? done(error) : done()
+
+            let i = 0
+            let isDone = false
+
+            const cb = function () {
+              if (isDone) {
+                return
+              }
+              if (++i >= 2) {
+                isDone = true
+                done(error)
+              }
+            }
+
+            try {
+              if (updateInputStreamsPostFlush && painter) {
+                forceFlush = true
+                context.rxTestScheduler.flush()
+                inputStreams = updateInputStreamsPostFlush(inputStreams, global.rxTestScheduler)
+                context.rxTestScheduler = null
+                const actualFilename = path.resolve('./tmp/errors/img/', makeFilename(title) + '.actual')
+                const expectedFilename = path.resolve('./tmp/errors/img/', makeFilename(title) + '.expected')
+                painter(inputStreams, 'Actual: ' + title, actualOutputStreams, actualFilename, (err?: Error) => {
+                  if (!err) {
+                    console.log('Painted ' + actualFilename)
+                  } else {
+                    console.error('Failed to paint ' + actualFilename, err)
+                  }
+                  cb()
+                })
+                painter(inputStreams, 'Expected: ' + title, expectedOutputStreams, expectedFilename, (err?: Error) => {
+                  if (!err) {
+                    console.log('Painted ' + expectedFilename)
+                  } else {
+                    console.error('Failed to paint ' + expectedFilename, err)
+                  }
+                  cb()
+                })
+
+              } else {
+                done(error)
+              }
+            } catch (_e) {
+              console.error( _e)
+              context.rxTestScheduler = null
+              done(error)
+            }
           }
         };
       }

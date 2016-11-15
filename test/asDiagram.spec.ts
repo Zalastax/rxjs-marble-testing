@@ -10,15 +10,23 @@ declare var hot: any
 declare var rxTestScheduler: any
 declare function asDiagram(operatorLabel: any, glit?: any): (description: any, specFn: any) => void
 
-describe('Hi', () => {
+describe.only('Failing', () => {
 
-  asDiagram('hello')('ahoj', () => {
+  it('writes marbles when it fails', () => {
     expect(1).to.equal(1)
 
     const source   = cold('---a---b---|')
-    const expected =      '---a---b---|'
+    const expected =      '---a-------|'
     expectObservable(source).toBe(expected)
   })
+
+  asDiagram('fail')('temp', () => {
+    const source   = cold('---a---b---|')
+    const expected =      '---a-------|'
+
+    expectObservable(source).toBe(expected)
+  })
+
 })
 
 describe('Observable.catch', () => {

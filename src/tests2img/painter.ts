@@ -4,7 +4,7 @@ import { writeFile } from 'fs'
 import * as _ from 'lodash'
 import * as Color from 'color'
 
-import { TestMessage, ColdStream, Stream, isCold } from './diagram-test-runner'
+import { TestMessage, ColdStream, Stream, isCold } from '../missinginterfaces'
 
 const CANVAS_WIDTH = 1280
 let canvasHeight: number
@@ -773,7 +773,12 @@ function sanitizeHigherOrderInputStreams(inputStreams: Stream[], outputStreams: 
 // =============================================================================
 
 
-export default function painter(inputStreams: Stream[], operatorLabel: string, outputStreams: Stream[], filename: string, cb: (err?: Error) => void) {
+export default function painter(
+  inputStreams: Stream[],
+  operatorLabel: string,
+  outputStreams: Stream[],
+  filename: string,
+  cb: (err?: Error) => void) {
   inputStreams = sanitizeHigherOrderInputStreams(inputStreams, outputStreams)
   const maxFrame = getMaxFrame(inputStreams.concat(outputStreams)) || DEFAULT_MAX_FRAME
   const allStreamsHeight = inputStreams.concat(outputStreams)

@@ -2,47 +2,7 @@
 import * as Rx from 'rxjs'
 import painter from './painter'
 import * as path from 'path'
-
-export interface TestMessage {
-  frame: number
-  notification: Rx.Notification<any>
-  isGhost?: boolean
-}
-
-export interface SubscriptionLog {
-  subscribedFrame: number
-  unsubscribedFrame: number
-}
-
-interface HotObservable extends Rx.Subject<any> {
-  messages: TestMessage[]
-}
-
-export interface ColdObservable extends Rx.Observable<any> {
-  messages: TestMessage[]
-  subscriptions: SubscriptionLog[]
-}
-
-interface RxTestScheduler {
-  hotObservables: HotObservable[]
-  coldObservables: ColdObservable[]
-}
-
-export interface Stream {
-  messages: TestMessage[]
-  subscription: {start: number | string, end: number | string}
-  isGhost?: boolean
-}
-
-export interface HotStream extends Stream {}
-
-export interface ColdStream extends Stream {
-  cold: ColdObservable
-}
-
-export function isCold(x: Stream): x is ColdStream {
-  return !!(x as ColdStream).cold
-}
+import { Stream, ColdStream, RxTestScheduler, HotStream, isCold } from '../missinginterfaces'
 
 declare const global: any
 
@@ -105,32 +65,39 @@ function makeFilename(operatorLabel: string) {
   return (/^(\w+)/.exec(operatorLabel) as RegExpExecArray)[1]
 }
 
-global.asDiagram = function asDiagram(operatorLabel: string, glit: any) {
-  // console.log("asDiagram for something")
+function buildDiagramOutputStream(streams: HotStream[], source: any) {
+  if (Array.isArray(source) && source.length > 0 && typeof source[0].frame === 'number') {
+    streams.push({
+      messages: source.map(postProcessOutputMessage),
+      subscription: {start: 0, end: '100%'},
+    })
+  } else if (Array.isArray(source) && source.length === 0) { // is the never Observable
+    streams.push({
+      messages: [],
+      subscription: {start: 0, end: '100%'},
+    })
+  }
+}
+
+global.buildDiagramOutputStream = buildDiagramOutputStream
+global.updateInputStreamsPostFlush = updateInputStreamsPostFlush
+global.getInputStreams = getInputStreams
+global.painter = painter
+
+global.asDiagram = function asDiagram(operatorLabel: string, glit: (title: any, fn: any) => any) {
   return function specFnWithPainter(description: string, specFn: any) {
-    // console.log("asDiagram returned function")
     if (specFn.length === 0) {
       glit(description, function (cb: any) {
         const outputStreams: HotStream[] = []
         global.rxTestScheduler = new Rx.TestScheduler(function (actual) {
-          if (Array.isArray(actual) && actual.length > 0 && typeof actual[0].frame === 'number') {
-            outputStreams.push({
-              messages: actual.map(postProcessOutputMessage),
-              subscription: {start: 0, end: '100%'}
-            })
-          } else if (Array.isArray(actual) && actual.length === 0) { // is the never Observable
-            outputStreams.push({
-              messages: [],
-              subscription: {start: 0, end: '100%'}
-            })
-          }
+          buildDiagramOutputStream(outputStreams, actual)
           return true
         })
         specFn()
         let inputStreams = getInputStreams(global.rxTestScheduler)
         global.rxTestScheduler.flush()
         inputStreams = updateInputStreamsPostFlush(inputStreams, global.rxTestScheduler)
-        // var filename = './tmp/docs/img/' + makeFilename(operatorLabel)
+
         const filename = path.resolve('./tmp/docs/img/', makeFilename(operatorLabel))
         painter(inputStreams, operatorLabel, outputStreams, filename, (err?: Error) => {
           if (!err) {
